@@ -93,6 +93,19 @@ export default function Wishlist() {
     ));
   };
 
+  // Helper function to safely render category
+  const renderCategory = (category) => {
+    if (!category) return null;
+    
+    // If category is an object, try to get the name property
+    if (typeof category === 'object') {
+      return category.name || category.title || 'Unknown Category';
+    }
+    
+    // If category is a string, return it directly
+    return category;
+  };
+
   return (
     <div className="bg-gray-50 p-4 min-h-screen">
       {notification && (
@@ -146,7 +159,7 @@ export default function Wishlist() {
                     )}
                     {item.category && (
                       <span className="text-sm text-orange-600 bg-orange-50 px-2 py-1 rounded mb-2 inline-block">
-                        {item.category}
+                        {renderCategory(item.category)}
                       </span>
                     )}
                     {item.rating && (

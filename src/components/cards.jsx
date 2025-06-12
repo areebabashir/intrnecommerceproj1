@@ -2,7 +2,7 @@ import React from "react";
 
 const Card = ({ imageSrc, altText, tags = [], title, oldPrice, price }) => {
   return (
-    <div className="p-5 outline outline-1 outline-stone-200 flex-col justify-start items-start gap-6 relative max-w-[320px]">
+    <div className="p-5 outline outline-1 outline-stone-200 flex-col justify-start items-start gap-6 relative max-w-[300px]">
       <div className="relative w-full h-80">
         <img className="w-full h-full object-cover" src={imageSrc} alt={altText} />
         {/* Tags */}

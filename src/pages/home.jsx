@@ -22,6 +22,7 @@ export const Home = () => {
       try {
         setLoading(true);
         const response = await fetch('https://api.escuelajs.co/api/v1/products');
+        console.log('Fetching products from API', response);
         if (!response.ok) {
           throw new Error('Failed to fetch products');
         }
@@ -39,12 +40,12 @@ export const Home = () => {
   }, []);
 
   // Handle product click - Navigate to product page
-  const handleProductClick = (product) => {
-    // Navigate to product page with product ID
-    navigate(`/product/${product.id}`, { 
-      state: { product } // Pass product data as state (optional)
-    });
-  };
+const handleProductClick = (product) => {
+  localStorage.setItem('selectedProduct', JSON.stringify(product));
+  navigate(`/product/${product.id}`);
+};
+
+
 
   // Handle "View All" clicks for different sections
   const handleViewAllClick = (section) => {
@@ -112,16 +113,14 @@ export const Home = () => {
         </div>
         <div className="flex items-center gap-2 cursor-pointer lg:px-10">
           <div className="text-orange-600 text-base sm:text-lg lg:text-xl font-semibold font-['Mulish'] uppercase">
-            <button onClick={() => handleViewAllClick('bestsellers')}>View All</button>
+            <button>View All</button>
           </div>
-          <div className="w-6 h-6 sm:w-8 sm:h-8 relative overflow-hidden">
-            <div className="w-2 h-4 left-[8px] sm:left-[12px] top-[4px] sm:top-[8px] absolute outline outline-2 outline-offset-[-1px] outline-orange-600" />
-          </div>
+         
         </div>
       </div>
 
       {/* Bestsellers Cards container */}
-      <div className="flex justify-center py-4 sm:py-10 px-6 w-[90%]">
+      <div className="flex justify-center py-4 sm:py-10 px-6 w-[95%] m-auto">
         <div className="flex flex-wrap justify-center gap-4 sm:gap-7 max-w-[1530px] w-full">
           {getBestsellerProducts().map(product => 
             createApiProductCard(product, [{ label: 'bestseller', bgColorClass: 'bg-pink-700' }])
@@ -136,16 +135,14 @@ export const Home = () => {
         </div>
         <div className="flex items-center gap-2 cursor-pointer">
           <div className="text-orange-600 text-base sm:text-lg lg:text-xl font-semibold font-['Mulish'] uppercase">
-            <button onClick={() => handleViewAllClick('outlet')}>view</button>
+            <button> view all</button>
           </div>
-          <div className="w-6 h-6 sm:w-8 sm:h-8 relative overflow-hidden">
-            <div className="w-2 h-4 left-[8px] sm:left-[12px] top-[4px] sm:top-[8px] absolute outline outline-2 outline-offset-[-1px] outline-orange-600" />
-          </div>
+          
         </div>
       </div>
 
       {/* Outlet Products */}
-      <div className="flex justify-center py-6 sm:py-10 px-4 lg:px-10 w-[90%]">
+      <div className="flex justify-center py-6 sm:py-10 px-4 lg:px-10 w-[95%] m-auto">
         <div className="flex flex-wrap justify-center items-start gap-4 sm:gap-7 max-w-[1530px] w-full">
           {getOutletProducts().map(product => 
             createApiProductCard(product, [
@@ -242,7 +239,7 @@ export const Home = () => {
       </div>
 
       {/* Shop by Category */}
-      <div className="py-12 sm:py-16 lg:py-26 bg-white relative w-[90%] m-auto">
+      <div className="py-12 sm:py-16 lg:py-26 bg-white relative w-[95%] m-auto">
         <h2 className="text-center text-stone-800 text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold font-['Libre_Bodoni'] mb-6 sm:mb-10 px-4">
           Shop by Category
         </h2>

@@ -13,63 +13,74 @@ const Product = ({ productId, onProductChange }) => {
   const [retryCount, setRetryCount] = useState(0);
 
   // Stable fetch function with retry logic
-  const fetchProduct = useCallback(async (id, retry = 0) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Try multiple API endpoints as fallbacks
-      const endpoints = [
-        `https://api.escuelajs.co/api/v1/products/${id}`,
-        `https://fakestoreapi.com/products/${id}`,
-        `https://jsonplaceholder.typicode.com/posts/${id}`
-      ];
-      
-      let data = null;
-      let success = false;
-      
-      for (const endpoint of endpoints) {
-        try {
-          const response = await fetch(endpoint);
-          if (response.ok) {
-            data = await response.json();
-            success = true;
-            break;
-          }
-        } catch (fetchError) {
-          console.warn(`Failed to fetch from ${endpoint}:`, fetchError);
-          continue;
-        }
-      }
-      
-      if (!success) {
-        throw new Error('All API endpoints failed');
-      }
-      
-      // Transform data based on API structure
-      const transformedProduct = transformProductData(data);
-      setProduct(transformedProduct);
-      setRetryCount(0); // Reset retry count on success
-      
-    } catch (err) {
-      console.error('Error fetching product:', err);
-      
-      // Implement retry logic with exponential backoff
-      if (retry < 2) {
-        setTimeout(() => {
-          setRetryCount(prev => prev + 1);
-          fetchProduct(id, retry + 1);
-        }, Math.pow(2, retry) * 1000); // 1s, 2s, 4s delays
+const fetchProduct = useCallback(async (id, retry = 0) => {
+  try {
+    setLoading(true);
+    setError(null);
+
+    // ✅ Load from 'selectedProduct' in localStorage
+    const cached = localStorage.getItem('selectedProduct');
+    console.log('Cached product:', cached);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed.id == id || parsed._id == id) {
+        setProduct(parsed);
+        setLoading(false);
         return;
       }
-      
-      setError(err.message);
-      // Set fallback product data
-      setProduct(getFallbackProduct(id));
-    } finally {
-      setLoading(false);
     }
-  }, []);
+
+    // 🌐 Try multiple API endpoints
+    const endpoints = [
+      `https://api.escuelajs.co/api/v1/products/${id}`,
+      `https://fakestoreapi.com/products/${id}`,
+      `https://jsonplaceholder.typicode.com/posts/${id}`
+    ];
+
+    let data = null;
+    let success = false;
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(endpoint);
+        if (response.ok) {
+          data = await response.json();
+          success = true;
+          break;
+        }
+      } catch (fetchError) {
+        console.warn(`Failed to fetch from ${endpoint}:`, fetchError);
+        continue;
+      }
+    }
+
+    if (!success) throw new Error('All API endpoints failed');
+
+    const transformedProduct = transformProductData(data);
+    setProduct(transformedProduct);
+
+    // 💾 Optional: Update localStorage for next time
+    localStorage.setItem('selectedProduct', JSON.stringify(transformedProduct));
+    setRetryCount(0);
+  } catch (err) {
+    console.error('Error fetching product:', err);
+
+    if (retry < 2) {
+      setTimeout(() => {
+        setRetryCount(prev => prev + 1);
+        fetchProduct(id, retry + 1);
+      }, Math.pow(2, retry) * 1000);
+      return;
+    }
+
+    setError(err.message);
+    const fallback = getFallbackProduct(id);
+    setProduct(fallback);
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
 
   // Transform API data to consistent format
   const transformProductData = (data) => {
@@ -119,31 +130,9 @@ const Product = ({ productId, onProductChange }) => {
     }
   };
 
-  // Fallback product data
-  const getFallbackProduct = (id) => ({
-    id: id,
-    name: "Premium Product",
-    price: 299,
-    images: [
-      "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop",
-      "https://images.unsplash.com/photo-1573408301185-9146fe634ad0?w=400&h=400&fit=crop"
-    ],
-    description: "Premium product with excellent quality and craftsmanship. Perfect combination of elegance and style. Comes with warranty and certificate of authenticity.",
-    specifications: {
-      material: "Premium Material",
-      weight: "Standard",
-      size: "Universal",
-      quality: "Premium",
-      category: "General",
-      warranty: "2 years warranty included"
-    },
-    rating: 4.5,
-    reviewCount: 15
-  });
-
   // Fetch single product with proper dependency management
   useEffect(() => {
-    const id = productId || 1;
+    const id = productId;
     fetchProduct(id);
   }, [productId, fetchProduct]); // Only re-run if productId changes
 
@@ -255,7 +244,7 @@ const toggleWishlist = () => {
 
 
   // Handle add to cart
-const [availableQty] = useState(Math.floor(Math.random() * 10) + 1);
+  const [availableQty, setAvailableQty] = useState(Math.floor(Math.random() * 10) + 1);
 const [cartQty, setCartQty] = useState(0);
 
 const addToCart = () => {
@@ -283,6 +272,8 @@ const addToCart = () => {
   } else {
     // Add new item if availableQty is at least 1
     if (availableQty > 0) {
+            setAvailableQty(prev => prev - 1); // Decrease available quantity
+
       const cartItem = {
         ...product,
         quantity: 1,
@@ -402,15 +393,23 @@ const addToCart = () => {
       <div className="flex flex-col lg:flex-row gap-8 p-6">
         {/* Product Images */}
         <div className="lg:w-1/2">
-          <img
+        {product?.images && product.images.length > 0 && ( <img
             src={product?.images[selectedImage] || product?.images[0]}
             alt={product?.name || 'Product'}
             className="w-full h-96 lg:h-[500px] object-cover rounded-lg mb-4"
             onError={(e) => {
               e.target.src = "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop";
             }}
-          />
-          
+          />)}
+         
+           {product?.imageSrc &&  ( <img
+            src={product?.imageSrc }
+            alt={product?.name || 'Product'}
+            className="w-full h-96 lg:h-[500px] object-cover rounded-lg mb-4"
+            onError={(e) => {
+              e.target.src = "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop";
+            }}
+          />)}
           {/* Thumbnail Images */}
           {product?.images && product.images.length > 1 && (
             <div className="flex gap-2 overflow-x-auto">
@@ -443,7 +442,8 @@ const addToCart = () => {
             </span>
           </div>
 
-          <h1 className="text-2xl lg:text-3xl font-bold mb-4">{product?.name || 'Product Name'}</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold mb-4">{product?.title
+ || 'Product Name'}</h1>
            <p className="text-sm text-gray-700 mt-1">
   <strong>Available Quantity:</strong> {availableQty}
 </p>
@@ -493,7 +493,7 @@ const addToCart = () => {
         </div>
 
         <div>
-          <h3 className="font-semibold mb-3">{product?.name || 'Product Name'}</h3>
+          <h3 className=" font-semi-bold mb-3">description:</h3>
           <p className="text-sm text-gray-600">
             {product?.description || 'Premium product with excellent quality and craftsmanship.'}
           </p>
