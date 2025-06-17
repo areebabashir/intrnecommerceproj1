@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import a from '../assets/1.png';
+import { Link } from 'react-router-dom';
 export default function Payment() {
   const [contactInfo, setContactInfo] = useState({
     email: '',
@@ -141,9 +142,10 @@ export default function Payment() {
               </div>
 
               {/* Continue Button */}
+              <Link to="/checkoutship">
               <button className="w-full bg-gray-400 text-white py-3 px-4 rounded-md font-medium hover:bg-gray-500 transition-colors">
                 Continue
-              </button>
+              </button></Link>
             </div>
           </div>
         </div>

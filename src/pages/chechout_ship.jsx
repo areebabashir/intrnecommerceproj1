@@ -1,148 +1,222 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronDown, X, Plus } from 'lucide-react';
-import a from '../assets/1.png';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronDown, X, Plus, Tag, CheckCircle } from 'lucide-react';
+import { useSelector, useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import {
+  selectCartItems,
+  selectCartCount,
+  selectSubtotal,
+  selectShippingCost,
+  selectDiscount,
+  selectTax,
+  selectTotal,
+  selectAppliedCoupon,
+  selectNotification,
+  applyCoupon,
+  removeCoupon,
+  clearNotification,
+  clearCart
+} from '../features/cartSlice';
+import {
+  setFormData,
+  setCurrentStep,
+  validateStep,
+  selectCheckoutFormData,
+  selectCheckoutCurrentStep,
+  selectCheckoutErrors,
+  clearCheckoutData,
+  selectCheckoutLoading,
+  setLoading,
+  setSuccessDialog,
+  selectShowSuccessDialog
+} from '../features/checkoutSlice';
 
-const Checkoutship = () => {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState({
-    // Contact Info
-    email: '',
-    
-    // Shipping Address
-    firstName: '',
-    lastName: '',
-    country: 'United States',
-    streetAddress: '',
-    addressLine2: '',
-    city: '',
-    state: '',
-    zipCode: '',
-    phoneNumber: '',
-    saveInfo: false,
-    smsNotifications: false,
-    
-    // Payment
-    paymentMethod: 'card'
-  });
+const CheckoutPage = () => {
+  // Redux state
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  
+  // Cart state
+  const cartItems = useSelector(selectCartItems);
+  const itemCount = useSelector(selectCartCount);
+  const subtotal = useSelector(selectSubtotal);
+  const shipping = useSelector(selectShippingCost);
+  const discount = useSelector(selectDiscount);
+  const tax = useSelector(selectTax);
+  const total = useSelector(selectTotal);
+  const coupon = useSelector(selectAppliedCoupon);
+  const notification = useSelector(selectNotification);
+  
+  // Checkout state
+  const formData = useSelector(selectCheckoutFormData);
+  const currentStep = useSelector(selectCheckoutCurrentStep);
+  const errors = useSelector(selectCheckoutErrors);
+  const isLoading = useSelector(selectCheckoutLoading);
+  const showSuccessDialog = useSelector(selectShowSuccessDialog);
 
-  const [errors, setErrors] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
+  // Local state
+  const [couponCode, setCouponCode] = useState('');
+  const [focusedField, setFocusedField] = useState(null);
 
-  // Product data
-  const product = {
-    name: 'GOLD RING WITH DIAMOND',
-    size: '17',
-    price: 34222,
-    image: '/api/placeholder/80/80'
+  // Refs for all input fields
+  const emailRef = useRef(null);
+  const firstNameRef = useRef(null);
+  const lastNameRef = useRef(null);
+  const countryRef = useRef(null);
+  const streetAddressRef = useRef(null);
+  const addressLine2Ref = useRef(null);
+  const cityRef = useRef(null);
+  const stateRef = useRef(null);
+  const zipCodeRef = useRef(null);
+  const phoneNumberRef = useRef(null);
+  const cardNumberRef = useRef(null);
+  const expiryDateRef = useRef(null);
+  const cvvRef = useRef(null);
+  const cardholderNameRef = useRef(null);
+  const couponInputRef = useRef(null);
+
+  // Map field names to their refs
+  const fieldRefs = {
+    email: emailRef,
+    firstName: firstNameRef,
+    lastName: lastNameRef,
+    country: countryRef,
+    streetAddress: streetAddressRef,
+    addressLine2: addressLine2Ref,
+    city: cityRef,
+    state: stateRef,
+    zipCode: zipCodeRef,
+    phoneNumber: phoneNumberRef,
+    cardNumber: cardNumberRef,
+    expiryDate: expiryDateRef,
+    cvv: cvvRef,
+    cardholderName: cardholderNameRef,
+    couponCode: couponInputRef
   };
 
-  const orderSummary = {
-    subtotal: 34222,
-    shipping: 0,
-    discount: 0,
-    tax: 0,
-    total: 489
+  // Focus management
+  const handleFocus = (fieldName) => {
+    setFocusedField(fieldName);
   };
 
-  // Form validation
-  const validateStep = (step) => {
-    const newErrors = {};
-    
-    if (step === 1) {
-      if (!formData.email) newErrors.email = 'Email is required';
-      else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Invalid email format';
+  const focusField = (fieldName) => {
+    if (fieldName && fieldRefs[fieldName]?.current) {
+      fieldRefs[fieldName].current.focus();
     }
-    
-    if (step === 2) {
-      if (!formData.firstName) newErrors.firstName = 'First name is required';
-      if (!formData.lastName) newErrors.lastName = 'Last name is required';
-      if (!formData.streetAddress) newErrors.streetAddress = 'Street address is required';
-      if (!formData.city) newErrors.city = 'City is required';
-      if (!formData.state) newErrors.state = 'State is required';
-      if (!formData.zipCode) newErrors.zipCode = 'ZIP code is required';
-      if (!formData.phoneNumber) newErrors.phoneNumber = 'Phone number is required';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({
-        ...prev,
-        [field]: ''
-      }));
+  // Save form data
+  useEffect(() => {
+    localStorage.setItem('checkoutFormData', JSON.stringify(formData));
+  }, [formData]);
+
+  // Handle notifications
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        dispatch(clearNotification());
+      }, 3000);
+      return () => clearTimeout(timer);
     }
+  }, [notification, dispatch]);
+
+  // Focus the first field when step changes
+  useEffect(() => {
+    if (currentStep === 1) {
+      focusField('email');
+    } else if (currentStep === 2) {
+      focusField('firstName');
+    } else if (currentStep === 3) {
+      focusField('cardNumber');
+    }
+  }, [currentStep]);
+
+  // Maintain focus when clicking outside
+
+
+  const handleInputChange = (section, field, value) => {
+    dispatch(setFormData({ section, field, value }));
   };
 
   const handleContinue = async () => {
-    if (!validateStep(currentStep)) return;
+    // Validate current step
+    const isValid = dispatch(validateStep(currentStep));
     
+    if (!isValid) {
+      // Find the first field with an error and focus it
+      const firstErrorField = Object.keys(errors)[0];
+      if (firstErrorField) {
+        focusField(firstErrorField);
+      }
+      return;
+    }
+
     if (currentStep < 3) {
-      setCurrentStep(currentStep + 1);
+      dispatch(setCurrentStep(currentStep + 1));
     } else {
-      // Process payment
-      setIsLoading(true);
+      dispatch(setLoading(true));
       try {
-        // Simulate payment processing
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        alert('Order placed successfully!');
+        // Simulate API call
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Clear cart and form data on success
+        dispatch(clearCart());
+        dispatch(clearCheckoutData());
+        localStorage.removeItem('checkoutFormData');
+        localStorage.removeItem('productCart');
+        
+        // Show success dialog
+        dispatch(setSuccessDialog(true));
       } catch (error) {
-        alert('Payment failed. Please try again.');
+        console.error('Checkout error:', error);
       } finally {
-        setIsLoading(false);
+        dispatch(setLoading(false));
       }
     }
   };
 
-  const handleStepClick = (step) => {
-    if (step < currentStep || (step === currentStep)) {
-      setCurrentStep(step);
-    }
+  const closeSuccessDialog = () => {
+    dispatch(setSuccessDialog(false));
+    navigate('/');
   };
 
-  // Input component with error handling
-  const Input = ({ label, type = 'text', field, placeholder, required = false, className = '' }) => (
-    <div className={`space-y-1 ${className}`}>
+  const InputField = ({ label, section, field, type = 'text', placeholder, required = false, className = '', innerRef }) => (
+    <div className={`mb-4 ${className}`}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
       <input
         type={type}
-        value={formData[field] || ''}
-        onChange={(e) => handleInputChange(field, e.target.value)}
+        ref={innerRef}
+        value={formData[section][field] || ''}
+        onChange={(e) => handleInputChange(section, field, e.target.value)}
+        onFocus={() => handleFocus(field)}
         placeholder={placeholder}
-        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+        className={`w-full px-3 py-2 border rounded-md ${
           errors[field] ? 'border-red-500' : 'border-gray-300'
         }`}
       />
-      {errors[field] && (
-        <p className="text-sm text-red-500">{errors[field]}</p>
-      )}
+      {errors[field] && <p className="mt-1 text-sm text-red-500">{errors[field]}</p>}
     </div>
   );
 
-  const Select = ({ label, field, options, required = false }) => (
-    <div className="space-y-1">
+  const SelectField = ({ label, section, field, options, required = false, innerRef }) => (
+    <div className="mb-4">
       {label && (
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
       <div className="relative">
         <select
-          value={formData[field] || ''}
-          onChange={(e) => handleInputChange(field, e.target.value)}
-          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white ${
+          ref={innerRef}
+          value={formData[section][field] || ''}
+          onChange={(e) => handleInputChange(section, field, e.target.value)}
+          onFocus={() => handleFocus(field)}
+          className={`w-full px-3 py-2 border rounded-md ${
             errors[field] ? 'border-red-500' : 'border-gray-300'
           }`}
         >
@@ -152,68 +226,97 @@ const Checkoutship = () => {
             </option>
           ))}
         </select>
-        <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
       </div>
-      {errors[field] && (
-        <p className="text-sm text-red-500">{errors[field]}</p>
-      )}
+      {errors[field] && <p className="mt-1 text-sm text-red-500">{errors[field]}</p>}
     </div>
   );
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="text-sm text-gray-500">
-            Shop / Ring / Order
+      <header className="bg-white border-b">
+        <div className="container mx-auto px-4 py-4 w-[80%] ">
+          <h1 className="text-xl font-semibold">Checkout</h1>
+        </div>
+      </header>
+
+      {/* Notification */}
+      {notification && (
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50">
+          {notification}
+        </div>
+      )}
+
+      {/* Success Dialog */}
+      {showSuccessDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <div className="flex flex-col items-center text-center">
+              <CheckCircle className="w-12 h-12 text-green-500 mb-4" />
+              <h2 className="text-2xl font-bold mb-2">Order Successful!</h2>
+              <p className="text-gray-600 mb-6">
+                Thank you for your purchase. Your order has been placed successfully.
+              </p>
+              <button
+                onClick={closeSuccessDialog}
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-md font-medium"
+              >
+                Continue Shopping
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 w-[80%]">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
+          {/* Checkout Form */}
           <div className="lg:col-span-2 space-y-6">
-            
             {/* Contact Information */}
-            <div className="bg-white rounded-lg border p-6">
+            <section className="bg-white rounded-lg shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-medium flex items-center">
-                  <span className="bg-orange-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3">
+                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs mr-2 ${
+                    currentStep >= 1 ? 'bg-orange-600 text-white' : 'bg-gray-200 text-gray-600'
+                  }`}>
                     1
                   </span>
                   Contact Information
                 </h2>
                 {currentStep > 1 && (
                   <button 
-                    onClick={() => handleStepClick(1)}
-                    className="text-orange-500 text-sm hover:underline"
+                    onClick={() => dispatch(setCurrentStep(1))}
+                    className="text-blue-600 text-sm hover:underline"
                   >
-                    Change
+                    Edit
                   </button>
                 )}
               </div>
-              
-              {currentStep >= 1 && (
-                <div className="space-y-4">
-                  <Input
-                    type="email"
-                    field="email"
-                    placeholder="Email"
-                    required
-                    className="max-w-md"
-                  />
+
+              {currentStep === 1 ? (
+                <InputField
+                  label="Email address"
+                  section="contactInfo"
+                  field="email"
+                  type="email"
+                  placeholder="your@email.com"
+                  required
+                  innerRef={emailRef}
+                />
+              ) : (
+                <div className="text-sm bg-gray-50 p-3 rounded">
+                  <p><span className="font-medium">Email:</span> {formData.contactInfo.email}</p>
                 </div>
               )}
-            </div>
+            </section>
 
             {/* Shipping Address */}
-            <div className="bg-white rounded-lg border p-6">
+            <section className="bg-white rounded-lg shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-medium flex items-center">
-                  <span className={`rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3 ${
-                    currentStep >= 2 ? 'bg-orange-500 text-white' : 'bg-gray-300 text-gray-600'
+                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs mr-2 ${
+                    currentStep >= 2 ? 'bg-orange-600 text-white' : 'bg-gray-200 text-gray-600'
                   }`}>
                     2
                   </span>
@@ -221,241 +324,370 @@ const Checkoutship = () => {
                 </h2>
                 {currentStep > 2 && (
                   <button 
-                    onClick={() => handleStepClick(2)}
-                    className="text-orange-500 text-sm hover:underline"
+                    onClick={() => dispatch(setCurrentStep(2))}
+                    className="text-blue-600 text-sm hover:underline"
                   >
-                    Change
+                    Edit
                   </button>
                 )}
               </div>
-              
-              {currentStep >= 2 && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input
-                      label="First Name"
+
+              {currentStep === 2 ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <InputField
+                      label="First name"
+                      section="shippingInfo"
                       field="firstName"
-                      placeholder="First Name"
+                      placeholder="John"
                       required
+                      innerRef={firstNameRef}
                     />
-                    <Input
-                      label="Last Name"
+                    <InputField
+                      label="Last name"
+                      section="shippingInfo"
                       field="lastName"
-                      placeholder="Last Name"
+                      placeholder="Doe"
                       required
+                      innerRef={lastNameRef}
                     />
                   </div>
-                  
-                  <Select
+
+                  <SelectField
                     label="Country"
+                    section="shippingInfo"
                     field="country"
-                    required
                     options={[
                       { value: 'United States', label: 'United States' },
                       { value: 'Canada', label: 'Canada' },
-                      { value: 'United Kingdom', label: 'United Kingdom' }
+                      { value: 'United Kingdom', label: 'UK' }
                     ]}
+                    required
+                    innerRef={countryRef}
                   />
-                  
-                  <Input
-                    label="Street Address"
+
+                  <InputField
+                    label="Street address"
+                    section="shippingInfo"
                     field="streetAddress"
-                    placeholder="Street Address"
+                    placeholder="123 Main St"
                     required
+                    innerRef={streetAddressRef}
                   />
-                  
-                  <button 
-                    type="button"
-                    className="text-blue-500 text-sm hover:underline flex items-center"
-                    onClick={() => handleInputChange('showAddressLine2', !formData.showAddressLine2)}
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add Line 2
-                  </button>
-                  
-                  {formData.showAddressLine2 && (
-                    <Input
+
+                  {formData.shippingInfo.showAddressLine2 ? (
+                    <InputField
+                      label="Apt, suite, etc. (optional)"
+                      section="shippingInfo"
                       field="addressLine2"
-                      placeholder="Apartment, suite, etc. (optional)"
+                      placeholder="Apt 4B"
+                      innerRef={addressLine2Ref}
                     />
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-blue-600 text-sm flex items-center mb-4"
+                      onClick={() => handleInputChange('shippingInfo', 'showAddressLine2', true)}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add address line 2
+                    </button>
                   )}
-                  
-                  <Input
-                    label="City"
-                    field="city"
-                    placeholder="City"
-                    required
-                  />
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Select
-                      label="State"
-                      field="state"
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <InputField
+                      label="City"
+                      section="shippingInfo"
+                      field="city"
+                      placeholder="New York"
                       required
+                      innerRef={cityRef}
+                    />
+                    <SelectField
+                      label="State"
+                      section="shippingInfo"
+                      field="state"
                       options={[
-                        { value: '', label: 'Select State' },
-                        { value: 'CA', label: 'California' },
+                        { value: '', label: 'Select state' },
                         { value: 'NY', label: 'New York' },
+                        { value: 'CA', label: 'California' },
                         { value: 'TX', label: 'Texas' }
                       ]}
-                    />
-                    <Input
-                      label="ZIP Code"
-                      field="zipCode"
-                      placeholder="ZIP Code"
                       required
+                      innerRef={stateRef}
                     />
                   </div>
-                  
-                  <Input
-                    label="Phone Number"
-                    type="tel"
-                    field="phoneNumber"
-                    placeholder="Phone Number"
-                    required
-                  />
-                  
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <InputField
+                      label="ZIP code"
+                      section="shippingInfo"
+                      field="zipCode"
+                      placeholder="10001"
+                      required
+                      innerRef={zipCodeRef}
+                    />
+                    <InputField
+                      label="Phone number"
+                      section="shippingInfo"
+                      field="phoneNumber"
+                      type="tel"
+                      placeholder="(123) 456-7890"
+                      required
+                      innerRef={phoneNumberRef}
+                    />
+                  </div>
+
                   <div className="space-y-2">
                     <label className="flex items-center">
                       <input
                         type="checkbox"
-                        checked={formData.saveInfo}
-                        onChange={(e) => handleInputChange('saveInfo', e.target.checked)}
-                        className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        checked={formData.shippingInfo.saveInfo}
+                        onChange={(e) => handleInputChange('shippingInfo', 'saveInfo', e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-orange-500 mr-2"
                       />
-                      <span className="text-sm text-gray-700">
-                        Save this information for a future fast checkout
-                      </span>
+                      <span className="text-sm">Save this information for next time</span>
                     </label>
-                    
                     <label className="flex items-center">
                       <input
                         type="checkbox"
-                        checked={formData.smsNotifications}
-                        onChange={(e) => handleInputChange('smsNotifications', e.target.checked)}
-                        className="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        checked={formData.shippingInfo.smsUpdates}
+                        onChange={(e) => handleInputChange('shippingInfo', 'smsUpdates', e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
                       />
-                      <span className="text-sm text-gray-700">
-                        Receive SMS notifications
-                      </span>
+                      <span className="text-sm">Get shipping updates via SMS</span>
                     </label>
                   </div>
+                </>
+              ) : (
+                <div className="text-sm bg-gray-50 p-3 rounded space-y-1">
+                  <p><span className="font-medium">Name:</span> {formData.shippingInfo.firstName} {formData.shippingInfo.lastName}</p>
+                  <p><span className="font-medium">Address:</span> {formData.shippingInfo.streetAddress}</p>
+                  {formData.shippingInfo.addressLine2 && <p>{formData.shippingInfo.addressLine2}</p>}
+                  <p>{formData.shippingInfo.city}, {formData.shippingInfo.state} {formData.shippingInfo.zipCode}</p>
+                  <p><span className="font-medium">Phone:</span> {formData.shippingInfo.phoneNumber}</p>
                 </div>
               )}
-            </div>
+            </section>
 
             {/* Payment Method */}
-            <div className="bg-white rounded-lg border p-6">
+            <section className="bg-white rounded-lg shadow-sm p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-medium flex items-center">
-                  <span className={`rounded-full w-6 h-6 flex items-center justify-center text-sm mr-3 ${
-                    currentStep >= 3 ? 'bg-orange-500 text-white' : 'bg-gray-300 text-gray-600'
+                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs mr-2 ${
+                    currentStep >= 3 ? 'bg-orange-600 text-white' : 'bg-gray-200 text-gray-600'
                   }`}>
                     3
                   </span>
                   Payment Method
                 </h2>
-                {currentStep > 3 && (
-                  <button 
-                    onClick={() => handleStepClick(3)}
-                    className="text-orange-500 text-sm hover:underline"
-                  >
-                    Change
-                  </button>
-                )}
               </div>
-              
-              {currentStep >= 3 && (
-                <div className="space-y-4">
-                  <div className="text-sm text-gray-600">
-                    Payment options will be displayed here based on your selected payment processor (Stripe, PayPal, etc.)
-                  </div>
-                </div>
-              )}
-            </div>
 
-            {/* Continue Button */}
-            <button
-              onClick={handleContinue}
-              disabled={isLoading}
-              className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white py-3 px-6 rounded-md font-medium transition-colors flex items-center justify-center"
-            >
-              {isLoading ? (
-                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                currentStep < 3 ? 'Continue' : 'Complete Order'
+              {currentStep === 3 && (
+                <>
+                  <div className="mb-6">
+                    <div className="flex items-center space-x-4 mb-4">
+                      <span className="text-sm font-medium">Credit Card</span>
+                      <div className="flex space-x-2">
+                        <div className="w-8 h-5 bg-orange-600 rounded text-white text-xs flex items-center justify-center">VISA</div>
+                        <div className="w-8 h-5 bg-orange-500 rounded text-white text-xs flex items-center justify-center">MC</div>
+                        <div className="w-8 h-5 bg-orange-800 rounded text-white text-xs flex items-center justify-center">AMEX</div>
+                      </div>
+                    </div>
+
+                    <InputField
+                      label="Card number"
+                      section="paymentInfo"
+                      field="cardNumber"
+                      type="text"
+                      placeholder="4242 4242 4242 4242"
+                      required
+                      innerRef={cardNumberRef}
+                    />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <InputField
+                        label="Expiration date"
+                        section="paymentInfo"
+                        field="expiryDate"
+                        placeholder="MM/YY"
+                        required
+                        innerRef={expiryDateRef}
+                      />
+                      <InputField
+                        label="CVV"
+                        section="paymentInfo"
+                        field="cvv"
+                        type="text"
+                        placeholder="123"
+                        required
+                        innerRef={cvvRef}
+                      />
+                    </div>
+
+                    <InputField
+                      label="Cardholder name"
+                      section="paymentInfo"
+                      field="cardholderName"
+                      placeholder="John Doe"
+                      required
+                      innerRef={cardholderNameRef}
+                    />
+
+                    <div className="mt-4">
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={formData.paymentInfo.sameAsShipping}
+                          onChange={(e) => handleInputChange('paymentInfo', 'sameAsShipping', e.target.checked)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2"
+                        />
+                        <span className="text-sm">Billing address is same as shipping</span>
+                      </label>
+                    </div>
+                  </div>
+                </>
               )}
-            </button>
-            <button               className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white py-3 px-6 rounded-md font-medium transition-colors flex items-center justify-center"
- > <a href="/preview">Preview</a> </button>
+            </section>
+
+            {/* Navigation */}
+            <div className="flex flex-col space-y-4">
+              <button
+                onClick={handleContinue}
+                disabled={isLoading}
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 px-4 rounded-md font-medium disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </span>
+                ) : currentStep < 3 ? (
+                  'Continue to shipping'
+                ) : (
+                  'Complete order'
+                )}
+              </button>
+
+              {currentStep > 1 && (
+                <button
+                  onClick={() => dispatch(setCurrentStep(currentStep - 1))}
+                  className="w-full bg-orange border border-gray-300 hover:bg-gray-50 text-gray-700 py-3 px-4 rounded-md font-medium"
+                >
+                  Back
+                </button>
+              )}
+              <Link to="/preview">
+                <button className="w-full bg-orange border border-gray-300 hover:bg-gray-50 text-gray-700 py-3 px-4 rounded-md font-medium">
+                  Preview
+                </button>
+              </Link>
+            </div>
           </div>
 
           {/* Order Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg border p-6 sticky top-8">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium">Order Summary</h3>
-                <button className="text-gray-400 hover:text-gray-600">
-                  <X className="w-5 h-5" />
-                </button>
+            <div className="bg-white rounded-lg shadow-sm p-6 sticky top-8">
+              <h2 className="text-lg font-medium mb-4">Order Summary</h2>
+
+              {/* Cart Items */}
+              <div className="mb-6 max-h-64 overflow-y-auto">
+                {cartItems.map(item => (
+                  <div key={item.id} className="flex items-start py-3 border-b">
+                    <div className="flex-shrink-0 w-16 h-16 bg-gray-100 rounded-md overflow-hidden">
+                      <img
+                        src={item.images || '/placeholder-product.jpg'}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="ml-3 flex-1">
+                      <h3 className="text-sm font-medium">{item.title}</h3>
+                      <p className="text-xs text-gray-500">Size: {item.size}</p>
+                      <p className="text-sm mt-1">${item.price.toFixed(2)} × {item.quantity}</p>
+                    </div>
+                    <div className="text-sm font-medium">
+                      ${(item.price * item.quantity).toFixed(2)}
+                    </div>
+                  </div>
+                ))}
               </div>
-              
-              {/* Product */}
-              <div className="flex items-start space-x-4 mb-6">
-                <div className="w-16 h-16 rounded-lg flex items-center justify-center">
-                <div className="w-10 h-10 border-2  rounded-full"> <img src={a} alt="" /></div>
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-medium text-sm">{product.name}</h4>
-                  <p className="text-sm text-gray-500">Size: {product.size}</p>
-                  <p className="font-medium">${product.price.toLocaleString()}</p>
-                </div>
-              </div>
-              
+
               {/* Coupon Code */}
               <div className="mb-6">
-                <div className="flex">
-                  <input
-                    type="text"
-                    placeholder="Coupon code"
-                    className="flex-1 px-3 py-2 border border-r-0 border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button className="px-4 py-2 bg-gray-100 border border-gray-300 rounded-r-md text-sm font-medium hover:bg-gray-200 transition-colors">
-                    Add Code
-                  </button>
-                </div>
+                <label className="block text-sm font-medium mb-2">Coupon Code</label>
+                {coupon ? (
+                  <div className="flex justify-between items-center bg-green-50 p-3 rounded">
+                    <div className="flex items-center">
+                      <Tag className="text-green-600 mr-2" size={16} />
+                      <span className="font-medium">{coupon.code}</span>
+                      <span className="ml-2 text-sm text-green-700">
+                        ({coupon.discount * 100}% off)
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => dispatch(removeCoupon())}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      ref={couponInputRef}
+                      onFocus={() => handleFocus('couponCode')}
+                      placeholder="Enter coupon code"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value)}
+                      className="flex-1 px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <button
+                      onClick={() => dispatch(applyCoupon(couponCode))}
+                      disabled={!couponCode.trim()}
+                      className="bg-orange-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
               </div>
-              
-              {/* Summary */}
-              <div className="space-y-2 text-sm">
+
+              {/* Order Totals */}
+              <div className="border-t pt-4 space-y-3">
                 <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>${orderSummary.subtotal.toLocaleString()}</span>
+                  <span>Subtotal ({itemCount} items)</span>
+                  <span>${subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Shipping</span>
                   <span className="text-green-600">FREE</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Discount</span>
-                  <span>-</span>
-                </div>
+                {coupon && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Discount</span>
+                    <span>-${discount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Tax</span>
-                  <span>-</span>
+                  <span>${tax.toFixed(2)}</span>
                 </div>
-                <hr className="my-3" />
-                <div className="flex justify-between font-medium text-lg">
+                <div className="flex justify-between font-bold text-lg border-t pt-3 mt-2">
                   <span>Total</span>
-                  <span>${orderSummary.total}</span>
+                  <span>${total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
 
-export default Checkoutship;
+export default CheckoutPage;

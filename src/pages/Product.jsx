@@ -1,172 +1,49 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { Heart, Star, Share2, ArrowLeft } from 'lucide-react';
 import ProductCard from '../components/cards.jsx';
+import {
+  fetchProduct,
+  fetchSimilarProducts,
+  setSelectedImageIndex,
+  toggleWishlist,
+  addToCart,
+  clearNotification,
+  selectSelectedProduct,
+  selectProductStatus,
+  selectProductError,
+  selectSimilarProducts,
+  selectAvailableQuantity,
+  selectSelectedImageIndex,
+  selectRetryCount,
+  selectIsInWishlist,
+  selectCartItemCount
+} from '../features/productSlice';
 
-const Product = ({ productId, onProductChange }) => {
-  const [selectedImage, setSelectedImage] = useState(0);
-  const [wishlist, setWishlist] = useState([]);
-  const [notification, setNotification] = useState('');
-  const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [similarProducts, setSimilarProducts] = useState([]);
-  const [retryCount, setRetryCount] = useState(0);
+const Product = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  
+  // Redux selectors
+  const product = useSelector(selectSelectedProduct);
+  const status = useSelector(selectProductStatus);
+  const error = useSelector(selectProductError);
+  const similarProducts = useSelector(selectSimilarProducts);
+  const availableQuantity = useSelector(selectAvailableQuantity);
+  const selectedImageIndex = useSelector(selectSelectedImageIndex);
+  const retryCount = useSelector(selectRetryCount);
+  const isInWishlist = useSelector(selectIsInWishlist(product?.id));
+  const cartItemCount = useSelector(selectCartItemCount);
 
-  // Stable fetch function with retry logic
-const fetchProduct = useCallback(async (id, retry = 0) => {
-  try {
-    setLoading(true);
-    setError(null);
+  // Local state
+  const [cartAnimation, setCartAnimation] = useState(false);
+  const [wishlistAnimation, setWishlistAnimation] = useState(false);
 
-    // ✅ Load from 'selectedProduct' in localStorage
-    const cached = localStorage.getItem('selectedProduct');
-    console.log('Cached product:', cached);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed.id == id || parsed._id == id) {
-        setProduct(parsed);
-        setLoading(false);
-        return;
-      }
-    }
-
-    // 🌐 Try multiple API endpoints
-    const endpoints = [
-      `https://api.escuelajs.co/api/v1/products/${id}`,
-      `https://fakestoreapi.com/products/${id}`,
-      `https://jsonplaceholder.typicode.com/posts/${id}`
-    ];
-
-    let data = null;
-    let success = false;
-
-    for (const endpoint of endpoints) {
-      try {
-        const response = await fetch(endpoint);
-        if (response.ok) {
-          data = await response.json();
-          success = true;
-          break;
-        }
-      } catch (fetchError) {
-        console.warn(`Failed to fetch from ${endpoint}:`, fetchError);
-        continue;
-      }
-    }
-
-    if (!success) throw new Error('All API endpoints failed');
-
-    const transformedProduct = transformProductData(data);
-    setProduct(transformedProduct);
-
-    // 💾 Optional: Update localStorage for next time
-    localStorage.setItem('selectedProduct', JSON.stringify(transformedProduct));
-    setRetryCount(0);
-  } catch (err) {
-    console.error('Error fetching product:', err);
-
-    if (retry < 2) {
-      setTimeout(() => {
-        setRetryCount(prev => prev + 1);
-        fetchProduct(id, retry + 1);
-      }, Math.pow(2, retry) * 1000);
-      return;
-    }
-
-    setError(err.message);
-    const fallback = getFallbackProduct(id);
-    setProduct(fallback);
-  } finally {
-    setLoading(false);
-  }
-}, []);
-
-
-  // Transform API data to consistent format
-  const transformProductData = (data) => {
-    // Handle different API response structures
-    if (data.title || data.name) {
-      // E-commerce API format
-      return {
-        id: data.id,
-        name: data.title || data.name,
-        price: data.price || 99,
-        images: Array.isArray(data.images) && data.images.length > 0 
-          ? data.images 
-          : data.image 
-          ? [data.image]
-          : ["https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop"],
-        description: data.description || "Premium product with excellent quality and craftsmanship. Perfect combination of elegance and style. Comes with warranty and certificate of authenticity.",
-        specifications: {
-          material: data.category?.name || data.category || "Premium Material",
-          weight: "Standard",
-          size: "Universal",
-          quality: "Premium",
-          category: data.category?.name || data.category || "General",
-          warranty: "2 years warranty included"
-        },
-        rating: data.rating?.rate || 4.5,
-        reviewCount: data.rating?.count || Math.floor(Math.random() * 20) + 5
-      };
-    } else {
-      // JSONPlaceholder format (fallback)
-      return {
-        id: data.id,
-        name: data.title,
-        price: 99,
-        images: ["https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop"],
-        description: data.body || "Premium product with excellent quality and craftsmanship.",
-        specifications: {
-          material: "Premium Material",
-          weight: "Standard",
-          size: "Universal",
-          quality: "Premium",
-          category: "General",
-          warranty: "2 years warranty included"
-        },
-        rating: 4.5,
-        reviewCount: Math.floor(Math.random() * 20) + 5
-      };
-    }
-  };
-
-  // Fetch single product with proper dependency management
-  useEffect(() => {
-    const id = productId;
-    fetchProduct(id);
-  }, [productId, fetchProduct]); // Only re-run if productId changes
-
-  // Fetch similar products with error handling
-  useEffect(() => {
-    const fetchSimilarProducts = async () => {
-      try {
-        const endpoints = [
-          'https://api.escuelajs.co/api/v1/products?limit=3&offset=10',
-          'https://fakestoreapi.com/products?limit=3'
-        ];
-        
-        let data = [];
-        for (const endpoint of endpoints) {
-          try {
-            const response = await fetch(endpoint);
-            if (response.ok) {
-              data = await response.json();
-              break;
-            }
-          } catch (fetchError) {
-            continue;
-          }
-        }
-        
-        setSimilarProducts(data.slice(0, 3)); // Ensure max 3 products
-      } catch (err) {
-        console.error('Error fetching similar products:', err);
-        setSimilarProducts([]); // Set empty array on error
-      }
-    };
-
-    fetchSimilarProducts();
-  }, []); // Only run once
+  // Computed values
+  const loading = status === 'loading';
+  const hasError = status === 'failed';
 
   // Mock reviews data
   const reviews = [
@@ -193,17 +70,24 @@ const fetchProduct = useCallback(async (id, retry = 0) => {
     }
   ];
 
-  // Load cart and wishlist from memory on component mount
+  // Fetch product data when component mounts or id changes
   useEffect(() => {
-    const savedWishlist = window.productWishlist || [];
-    setWishlist(savedWishlist);
-  }, []);
+    if (id) {
+      dispatch(fetchProduct(id));
+    }
+    return () => {
+      dispatch(clearNotification());
+    };
+  }, [id, dispatch]);
 
-  // Save to global state
-  const saveToGlobalState = (key, data) => {
-    window[key] = data;
-  };
+  // Fetch similar products when product changes
+  useEffect(() => {
+    if (product?.category) {
+      dispatch(fetchSimilarProducts(product.category));
+    }
+  }, [product?.category, dispatch]);
 
+  // Helper function to render stars
   const renderStars = (rating) => {
     return [...Array(5)].map((_, i) => (
       <Star
@@ -215,110 +99,57 @@ const fetchProduct = useCallback(async (id, retry = 0) => {
     ));
   };
 
-  // Handle add/remove wishlist
-const toggleWishlist = () => {
-  if (!product) return;
+  // Handle image selection
+  const handleImageSelect = (index) => {
+    dispatch(setSelectedImageIndex(index));
+  };
 
-  let updatedWishlist;
-  if (wishlist.some(item => item.id === product.id)) {
-    updatedWishlist = wishlist.filter(item => item.id !== product.id);
-    setNotification('Removed from wishlist!');
-  } else {
-    updatedWishlist = [...wishlist, product];
-    setNotification('Added to wishlist!');
-  }
-
-  setWishlist(updatedWishlist);
-
-  // ✅ Save to global variable
-  window.productWishlist = updatedWishlist;
-
-  // ✅ Save to localStorage
-  localStorage.setItem('productWishlist', JSON.stringify(updatedWishlist));
-
-  // ✅ Dispatch event (optional, in case another component listens)
-  window.dispatchEvent(new CustomEvent('wishlistUpdated', { detail: updatedWishlist }));
-
-  setTimeout(() => setNotification(''), 2000);
-};
-
-
-  // Handle add to cart
-  const [availableQty, setAvailableQty] = useState(Math.floor(Math.random() * 10) + 1);
-const [cartQty, setCartQty] = useState(0);
-
-const addToCart = () => {
-  if (!product) return;
-
-  // Get the current cart from global or fallback to empty array
-  const currentCart = window.productCart || [];
-  const existingItem = currentCart.find(item => item.id === product.id);
-
-  let updatedCart;
-
-  if (existingItem) {
-    // Check if adding one more exceeds available quantity
-    if (existingItem.quantity < availableQty) {
-      updatedCart = currentCart.map(item =>
-        item.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      );
-      setNotification('Quantity updated in cart!');
-      setCartQty(prev => prev + 1);
-    } else {
-      setNotification('Cannot add more. Stock limit reached!');
+  // Handle wishlist toggle with animation
+  const handleToggleWishlist = () => {
+    if (product) {
+      dispatch(toggleWishlist(product));
+      setWishlistAnimation(true);
+      setTimeout(() => setWishlistAnimation(false), 1000);
+      
+      // Dispatch event to update other components
+      const event = new CustomEvent('wishlistUpdated');
+      window.dispatchEvent(event);
     }
-  } else {
-    // Add new item if availableQty is at least 1
-    if (availableQty > 0) {
-            setAvailableQty(prev => prev - 1); // Decrease available quantity
+  };
 
-      const cartItem = {
-        ...product,
-        quantity: 1,
-        image: product.images[0]
-      };
-      updatedCart = [...currentCart, cartItem];
-      setNotification('Successfully added to cart!');
-      setCartQty(1);
-    } else {
-      setNotification('Out of stock!');
-      return;
-    }
+  // Handle add to cart with animation
+ const handleAddToCart = () => {
+  if (product && availableQuantity > 0) {
+    dispatch(addToCart(product));
+    setCartAnimation(true);
+    setTimeout(() => setCartAnimation(false), 1000);
+    
+    // Dispatch event to update other components
+    const event = new CustomEvent('cartUpdated', { 
+      detail: [...cart, product] // Make sure you have access to current cart
+    });
+    window.dispatchEvent(event);
   }
-
-  // Save updated cart if it changed
-  if (updatedCart) {
-    window.productCart = updatedCart;
-    localStorage.setItem('productCart', JSON.stringify(updatedCart));
-    window.dispatchEvent(new CustomEvent('cartUpdated', { detail: updatedCart }));
-  }
-
-  // Clear notification after 3 seconds
-  setTimeout(() => setNotification(''), 3000);
 };
-
   // Handle similar product click
   const handleSimilarProductClick = (clickedProduct) => {
-    const transformedProduct = transformProductData(clickedProduct);
-    setProduct(transformedProduct);
-    setSelectedImage(0);
+    navigate(`/product/${clickedProduct.id}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Manual retry function
+  // Handle manual retry
   const handleRetry = () => {
-    setRetryCount(0);
-    const id = productId || 1;
-    fetchProduct(id);
+    if (id) {
+      dispatch(fetchProduct(id));
+    }
   };
 
   // Handle back navigation
   const handleBackClick = () => {
-    window.history.back();
+    navigate(-1);
   };
 
+  // Loading state
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -326,14 +157,15 @@ const addToCart = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
           <p className="text-stone-800 font-['Mulish']">Loading product details...</p>
           {retryCount > 0 && (
-            <p className="text-sm text-gray-600 mt-2">Retry attempt: {retryCount}/2</p>
+            <p className="text-sm text-gray-600 mt-2">Retry attempt: {retryCount}/3</p>
           )}
         </div>
       </div>
     );
   }
 
-  if (error && !product) {
+  // Error state without product
+  if (hasError && !product) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
@@ -344,14 +176,15 @@ const addToCart = () => {
             <button 
               onClick={handleRetry}
               className="bg-orange-600 text-white px-6 py-2 rounded font-['Mulish']"
+              disabled={retryCount >= 3}
             >
-              Try Again
+              {retryCount >= 3 ? 'Max retries reached' : 'Try Again'}
             </button>
             <button 
-              onClick={() => window.location.reload()} 
+              onClick={() => navigate('/')} 
               className="bg-gray-600 text-white px-6 py-2 rounded font-['Mulish']"
             >
-              Reload Page
+              Return Home
             </button>
           </div>
         </div>
@@ -359,33 +192,27 @@ const addToCart = () => {
     );
   }
 
-  const isInWishlist = product && wishlist.some(item => item.id === product.id);
-
   return (
     <div className="max-w-7xl mx-auto bg-white">
-      {/* Back Button with Icon - No borders */}
+      {/* Back Button */}
       <div className="p-6 pb-0">
         <button
           onClick={handleBackClick}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors group"
+          aria-label="Go back"
         >
           <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
           <span className="text-sm font-medium">Back</span>
         </button>
       </div>
 
+  
+
       {/* Error notification for API issues */}
-      {error && product && (
+      {hasError && product && (
         <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4 mx-6">
           <p className="font-bold">Warning</p>
           <p>Some data may be incomplete due to API issues. Using fallback data.</p>
-        </div>
-      )}
-
-      {/* Notification */}
-      {notification && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-pulse">
-          {notification}
         </div>
       )}
 
@@ -393,39 +220,37 @@ const addToCart = () => {
       <div className="flex flex-col lg:flex-row gap-8 p-6">
         {/* Product Images */}
         <div className="lg:w-1/2">
-        {product?.images && product.images.length > 0 && ( <img
-            src={product?.images[selectedImage] || product?.images[0]}
-            alt={product?.name || 'Product'}
-            className="w-full h-96 lg:h-[500px] object-cover rounded-lg mb-4"
-            onError={(e) => {
-              e.target.src = "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop";
-            }}
-          />)}
-         
-           {product?.imageSrc &&  ( <img
-            src={product?.imageSrc }
-            alt={product?.name || 'Product'}
-            className="w-full h-96 lg:h-[500px] object-cover rounded-lg mb-4"
-            onError={(e) => {
-              e.target.src = "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop";
-            }}
-          />)}
+          {/* Main Image */}
+          {product?.images && product.images.length > 0 && (
+            <img
+              src={product.images[selectedImageIndex] || product.images[0]}
+              alt={product?.title || 'Product'}
+              className="w-full h-96 lg:h-[500px] object-cover rounded-lg mb-4"
+              onError={(e) => {
+                e.target.src = "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop";
+              }}
+            />
+          )}
+          
           {/* Thumbnail Images */}
           {product?.images && product.images.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto">
+            <div className="flex gap-2 overflow-x-auto pb-2">
               {product.images.map((image, index) => (
-                <img
+                <button
                   key={index}
-                  src={image}
-                  alt={`${product.name} ${index + 1}`}
-                  className={`w-20 h-20 object-cover rounded cursor-pointer border-2 ${
-                    selectedImage === index ? 'border-orange-500' : 'border-gray-200'
-                  }`}
-                  onClick={() => setSelectedImage(index)}
-                  onError={(e) => {
-                    e.target.src = "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop";
-                  }}
-                />
+                  onClick={() => handleImageSelect(index)}
+                  className={`flex-shrink-0 focus:outline-none ${selectedImageIndex === index ? 'ring-2 ring-orange-500' : ''}`}
+                  aria-label={`View image ${index + 1}`}
+                >
+                  <img
+                    src={image}
+                    alt=""
+                    className="w-20 h-20 object-cover rounded border-2 border-transparent"
+                    onError={(e) => {
+                      e.target.src = "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=400&h=400&fit=crop";
+                    }}
+                  />
+                </button>
               ))}
             </div>
           )}
@@ -442,30 +267,48 @@ const addToCart = () => {
             </span>
           </div>
 
-          <h1 className="text-2xl lg:text-3xl font-bold mb-4">{product?.title
- || 'Product Name'}</h1>
-           <p className="text-sm text-gray-700 mt-1">
-  <strong>Available Quantity:</strong> {availableQty}
-</p>
-          <div className="text-3xl font-bold text-orange-600 mb-6">${product?.price || 299}</div>
+          <h1 className="text-2xl lg:text-3xl font-bold mb-4">
+            {product?.title || 'Product Name'}
+          </h1>
+          
+          <p className="text-sm text-gray-700 mt-1">
+            <strong>Available Quantity:</strong> {availableQuantity}
+          </p>
+          
+          <div className="text-3xl font-bold text-orange-600 mb-6">
+            ${product?.price || 299}
+          </div>
 
           <div className="flex gap-4 mb-6">
             <button
-              onClick={addToCart}
-              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors"
+              onClick={handleAddToCart}
+              className={`flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 px-6 rounded-lg font-semibold transition-colors relative overflow-hidden ${
+                availableQuantity === 0 ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              disabled={availableQuantity === 0}
+              aria-label="Add to cart"
             >
-              Add to Cart
+              {availableQuantity === 0 ? 'Out of Stock' : 'Add to Cart'}
+              {cartAnimation && (
+                <span className="absolute inset-0 flex items-center justify-center bg-green-500 animate-ping opacity-75"></span>
+              )}
             </button>
             <button
-              onClick={toggleWishlist}
-              className={`px-4 py-3 border rounded-lg hover:bg-gray-50 border-gray-300 transition-colors ${
+              onClick={handleToggleWishlist}
+              className={`px-4 py-3 border rounded-lg hover:bg-gray-50 border-gray-300 transition-colors relative ${
                 isInWishlist ? 'text-red-500 bg-red-50' : ''
               }`}
-              aria-label="Toggle Wishlist"
+              aria-label={isInWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
             >
-              <Heart className="w-5 h-5" fill={isInWishlist ? 'red' : 'none'} />
+              <Heart 
+                className={`w-5 h-5 ${wishlistAnimation ? 'animate-ping' : ''}`} 
+                fill={isInWishlist ? 'currentColor' : 'none'} 
+              />
             </button>
-            <button className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            <button 
+              className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              aria-label="Share this product"
+            >
               <Share2 className="w-5 h-5" />
             </button>
           </div>
@@ -493,7 +336,7 @@ const addToCart = () => {
         </div>
 
         <div>
-          <h3 className=" font-semi-bold mb-3">description:</h3>
+          <h3 className="font-semibold mb-3">Description:</h3>
           <p className="text-sm text-gray-600">
             {product?.description || 'Premium product with excellent quality and craftsmanship.'}
           </p>
@@ -515,52 +358,44 @@ const addToCart = () => {
       <div className="px-6 pt-10">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold">Similar Products</h2>
-          <button className="text-orange-500 text-sm">View all →</button>
+          <button 
+            className="text-orange-500 text-sm hover:text-orange-600"
+            onClick={() => navigate('/collections')}
+          >
+            View all →
+          </button>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {similarProducts.length > 0 ? (
             similarProducts.map((similarProduct) => (
               <div
                 key={similarProduct.id}
                 onClick={() => handleSimilarProductClick(similarProduct)}
                 className="cursor-pointer transform hover:scale-105 transition-transform duration-200"
+                aria-label={`View ${similarProduct.title}`}
               >
                 <ProductCard
-                  imageSrc={similarProduct.images?.[0] || similarProduct.image || "https://placehold.co/320x334"}
-                  altText={similarProduct.title || similarProduct.name}
+                  imageSrc={similarProduct.images?.[0] || "https://placehold.co/320x334"}
+                  altText={similarProduct.title}
                   tags={[{ label: 'similar', bgColorClass: 'bg-blue-600' }]}
-                  title={similarProduct.title || similarProduct.name}
+                  title={similarProduct.title}
                   price={similarProduct.price?.toString() || "0"}
                 />
               </div>
             ))
           ) : (
             // Fallback products if API fails
-            <>
+            [1, 2, 3, 4].map((i) => (
               <ProductCard
+                key={i}
                 imageSrc="https://placehold.co/320x334"
-                altText="Necklace"
-                tags={[{ label: 'bestseller', bgColorClass: 'bg-pink-700' }, { label: 'sale', bgColorClass: 'bg-orange-600' }]}
-                title="Necklace"
-                oldPrice="2,350"
-                price="1,432"
-              />
-              <ProductCard
-                imageSrc="https://placehold.co/320x334"
-                altText="Necklace"
+                altText={`Product ${i}`}
                 tags={[{ label: 'bestseller', bgColorClass: 'bg-pink-700' }]}
-                title="Necklace"
-                price="2,445"
+                title={`Product ${i}`}
+                price={(100 * i).toString()}
               />
-              <ProductCard
-                imageSrc="https://placehold.co/320x334"
-                altText="Ring"
-                tags={[{ label: 'bestseller', bgColorClass: 'bg-pink-700' }]}
-                title="Ring"
-                price="489"
-              />
-            </>
+            ))
           )}
         </div>
       </div>

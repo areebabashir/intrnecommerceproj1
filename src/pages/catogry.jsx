@@ -144,7 +144,7 @@ const Category = () => {
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-6">
       {/* Sidebar filters */}
-      <div className="w-full lg:w-1/4 flex flex-col gap-6">
+      <div className="w-full lg:w-1/6 flex flex-col gap-6">
         <FilterSection 
           title="Categories" 
           isExpanded={expandedFilters.category} 

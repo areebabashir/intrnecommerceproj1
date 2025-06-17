@@ -39,7 +39,7 @@ export default function CheckoutForm() {
                 
                 <div className="text-sm">
                   <span className="text-gray-600">Already have an account? </span>
-<Link to="/checkout-form">
+<Link to="/Login">
   <button className="text-blue-600 hover:underline">Login</button>
 </Link>                
 
@@ -47,6 +47,7 @@ export default function CheckoutForm() {
               </div>
 
               <div className="mt-6 flex justify-end">
+                <Link to="/Login"></Link>
                 <button className="bg-gray-400 text-white px-8 py-2 rounded-md hover:bg-gray-500 transition-colors">
                   Continue
                 </button>
